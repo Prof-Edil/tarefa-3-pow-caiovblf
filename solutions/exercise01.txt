@@ -1,0 +1,65 @@
+import csv
+import os
+
+def solve():
+    txs = {}
+    with open('data/mempool.csv', 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            txid, fee, weight, parents = row[0], int(row[1]), int(row[2]), row[3]
+            parent_list = parents.split(';') if parents else []
+            txs[txid] = {'fee': fee, 'weight': weight, 'parents': parent_list}
+
+    mandatory_tx = '4c50e3dad7f98bceb6441f96b23748dea84fbdb7cedd603441e6ea4a574d04a6'
+    
+    included = []
+    included_set = set()
+    current_weight = 0
+
+    def add_tx(txid):
+        nonlocal current_weight
+        if txid in included_set:
+            return
+        for p in txs[txid]['parents']:
+            add_tx(p)
+        included.append(txid)
+        included_set.add(txid)
+        current_weight += txs[txid]['weight']
+
+    if mandatory_tx in txs:
+        add_tx(mandatory_tx)
+
+    tx_lucro = []
+    for txid, dados in txs.items():
+        if txid not in included_set:
+            lucro = dados['fee'] / dados['weight']
+            tx_lucro.append((lucro, txid))
+            
+    tx_lucro.sort(reverse=True)
+
+    while True:
+        adicionou = False
+        for lucro, txid in tx_lucro:
+            if txid not in included_set:
+                if current_weight + txs[txid]['weight'] <= 4000000:
+                    pais_ok = True
+                    for p in txs[txid]['parents']:
+                        if p not in included_set:
+                            pais_ok = False
+                            break
+                    if pais_ok:
+                        included.append(txid)
+                        included_set.add(txid)
+                        current_weight += txs[txid]['weight']
+                        adicionou = True
+                        break
+        if not adicionou:
+            break
+
+    os.makedirs('solutions', exist_ok=True)
+    with open('solutions/exercise01.txt', 'w') as f:
+        for txid in included:
+            f.write(txid + '\n')
+
+if __name__ == '__main__':
+    solve()
