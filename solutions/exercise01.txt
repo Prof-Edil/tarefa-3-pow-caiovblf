@@ -1,66 +1,67 @@
 import csv
 import os
 
+class Tx:
+    def __init__(self, txid, fee, weight, parents):
+        self.txid = txid
+        self.fee = int(fee)
+        self.weight = int(weight)
+        self.parents = set(parents.split(';')) if parents else set()
+
 def solve():
     txs = {}
     with open('data/mempool.csv', 'r') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            txid, fee, weight, parents = row[0], int(row[1]), int(row[2]), row[3]
-            parent_list = parents.split(';') if parents else []
-            txs[txid] = {'fee': fee, 'weight': weight, 'parents': parent_list}
+        for line in f:
+            row = line.strip().split(',')
+            if len(row) < 3 or not row[1].isdigit():
+                continue
+            parents = row[3] if len(row) > 3 else ""
+            txs[row[0]] = Tx(row[0], row[1], row[2], parents)
 
-    mandatory_tx = '4c50e3dad7f98bceb6441f96b23748dea84fbdb7cedd603441e6ea4a574d04a6'
-    
     included = []
     included_set = set()
     current_weight = 0
 
     def add_tx(txid):
         nonlocal current_weight
-        if txid not in txs: 
+        if txid in included_set or txid not in txs:
             return
-        if txid in included_set:
-            return
-        for p in txs[txid]['parents']:
+        for p in txs[txid].parents:
             add_tx(p)
-        included.append(txid)
-        included_set.add(txid)
-        current_weight += txs[txid]['weight']
-
-    if mandatory_tx in txs:
-        add_tx(mandatory_tx)
-
-    tx_lucro = []
-    for txid, dados in txs.items():
         if txid not in included_set:
-            lucro = dados['fee'] / dados['weight']
-            tx_lucro.append((lucro, txid))
-            
-    tx_lucro.sort(reverse=True)
+            included.append(txid)
+            included_set.add(txid)
+            current_weight += txs[txid].weight
 
-    while True:
-        adicionou = False
-        for lucro, txid in tx_lucro:
-            if txid not in included_set:
-                if current_weight + txs[txid]['weight'] <= 4000000:
-                    pais_ok = True
-                    for p in txs[txid]['parents']:
-                        if p in txs and p not in included_set:
-                            pais_ok = False
-                            break
-                    if pais_ok:
-                        included.append(txid)
-                        included_set.add(txid)
-                        current_weight += txs[txid]['weight']
-                        adicionou = True
-                        break
-        if not adicionou:
-            break
+    add_tx('4c50e3dad7f98bceb6441f96b23748dea84fbdb7cedd603441e6ea4a574d04a6')
+
+    sorted_txs = sorted(txs.values(), key=lambda x: x.fee / x.weight, reverse=True)
+
+    for tx in sorted_txs:
+        if tx.txid in included_set:
+            continue
+        
+        def get_missing_ancestors(tid, missing):
+            if tid in included_set or tid in missing:
+                return True
+            if tid not in txs:
+                return False
+            missing.add(tid)
+            for p in txs[tid].parents:
+                if not get_missing_ancestors(p, missing):
+                    return False
+            return True
+
+        missing_ancs = set()
+        if not get_missing_ancestors(tx.txid, missing_ancs):
+            continue
+
+        total_weight = sum(txs[a].weight for a in missing_ancs)
+        if current_weight + total_weight <= 4000000:
+            add_tx(tx.txid)
 
     os.makedirs('solutions', exist_ok=True)
-    # A mágica que salva o arquivo no formato que o GitHub Actions (Linux) exige
-    with open('solutions/exercise01.txt', 'w', newline='\n') as f:
+    with open('solutions/exercise01.txt', 'w') as f:
         for txid in included:
             f.write(txid + '\n')
 
