@@ -18,6 +18,8 @@ def solve():
 
     def add_tx(txid):
         nonlocal current_weight
+        if txid not in txs: 
+            return
         if txid in included_set:
             return
         for p in txs[txid]['parents']:
@@ -44,7 +46,7 @@ def solve():
                 if current_weight + txs[txid]['weight'] <= 4000000:
                     pais_ok = True
                     for p in txs[txid]['parents']:
-                        if p not in included_set:
+                        if p in txs and p not in included_set:
                             pais_ok = False
                             break
                     if pais_ok:
@@ -57,7 +59,8 @@ def solve():
             break
 
     os.makedirs('solutions', exist_ok=True)
-    with open('solutions/exercise01.txt', 'w') as f:
+    # A mágica que salva o arquivo no formato que o GitHub Actions (Linux) exige
+    with open('solutions/exercise01.txt', 'w', newline='\n') as f:
         for txid in included:
             f.write(txid + '\n')
 
